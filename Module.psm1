@@ -480,11 +480,16 @@ Function Invoke-KuduCommand
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
         $ScmEndpoint,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
         [System.String]
         $Command,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Directory='SystemDrive/Windows/System32',        
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [System.String]
         $PublishingUsername,
@@ -506,9 +511,14 @@ Function Invoke-KuduCommand
             $Headers=GetKuduHeaders -AccessToken $AccessToken
         }
     }
-
+    $CommandToRun=New-Object PSObject -Property @{
+        command=$Command;
+        dir=$Directory;
+    }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    $KuduUriBld.Path="api/vfs/"
+    $KuduUriBld.Path="api/command"
+    $CmdResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -Method Post -Body $CommandToRun -ContentType 'application/json'
+    Write-Output $CmdResult
 }
 
 #Diagnostics
