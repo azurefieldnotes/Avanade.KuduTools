@@ -709,3 +709,50 @@ Get-KuduRecentLog
 }
 
 #Webjobs
+Get-KuduWebJob
+{
+    [CmdletBinding(DefaultParameterSetName='AAD')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.Uri]
+        $ScmEndpoint,      
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [Switch]
+        $Triggered,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [Switch]
+        $Continuous,         
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object]
+        $PublishingCredential       
+    )
+
+    switch ($PSCmdlet.ParameterSetName) {
+        "PublishingCredential" {
+            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
+            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+            $Headers=GetKuduHeaders -AccessToken $AccessToken
+        }
+    }
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    if ($Triggered.IsPresent) {
+        $KuduUriBld.Path="api/triggeredwebjobs"
+    }
+    elseif ($Continuous.IsPresent) {
+        $KuduUriBld.Path="api/continuouswebjobs"
+    }
+    else {
+        $KuduUriBld.Path="api/webjobs"
+    }
+    $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType 'application/json'
+    Write-Output $KuduResult
+}
