@@ -38,6 +38,7 @@ Function GetKuduHeaders
     return $Headers     
 }
 
+#Processes
 #api/processes
 Function Get-KuduProcess
 {
