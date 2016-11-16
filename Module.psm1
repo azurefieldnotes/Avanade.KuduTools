@@ -201,7 +201,7 @@ Function Get-KuduEnvironment
     return $KuduResult
 }
 
-Function Get-KuduSettings
+Function Get-KuduSetting
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
@@ -210,6 +210,11 @@ Function Get-KuduSettings
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
         $ScmEndpoint,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Setting,
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [System.String]
         $PublishingUsername,
@@ -233,6 +238,9 @@ Function Get-KuduSettings
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path+="/api/settings"
+    if ([String]::IsNullOrEmpty($Setting) -eq $false) {
+        $KuduUriBld.Path+="/$Setting"
+    }
     $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
     return $KuduResult
 }
@@ -451,7 +459,7 @@ Function Copy-KuduItem
             $KuduBriBld.Path="api/vfs/"
         }
         else {
-            $KuduBriBld.Path="api/vfs/$($Destination.TrimEnd('/'))"
+            $KuduBriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
         }
     }
     PROCESS
@@ -469,6 +477,57 @@ Function Copy-KuduItem
 }
 
 #Zip
+Function Compress-KuduPath
+{
+    [CmdletBinding(DefaultParameterSetName='AAD')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.Uri]
+        $ScmEndpoint,  
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String]
+        $AccessToken,      
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
+        [System.Object]
+        $PublishingCredential,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
+        [System.String[]]
+        $Path,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Destination
+    )
+
+    BEGIN
+    {
+        switch ($PSCmdlet.ParameterSetName) {
+            "PublishingCredential" {
+                $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
+                $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+                $Headers=GetKuduHeaders -AccessToken $AccessToken
+            }
+        }
+        $KuduBriBld=New-Object System.UriBuilder($ScmEndpoint)
+        $KuduBriBld.Path="api/zip/$($Path.TrimEnd('/'))"
+    }
+    PROCESS
+    {
+        foreach ($item in $path)
+        {
+
+        }
+    }
+    END
+    {
+
+    }
+}
 
 #Execute Command
 Function Invoke-KuduCommand
@@ -485,9 +544,9 @@ Function Invoke-KuduCommand
         [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
         [System.String]
         $Command,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
         [System.String]
         $Directory='SystemDrive/Windows/System32',        
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
@@ -525,6 +584,44 @@ Function Invoke-KuduCommand
 #/api/dump
 
 #Diagnostics/Settings
+Function Get-KuduDiagnosticSetting
+{
+    [CmdletBinding(DefaultParameterSetName='AAD')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.Uri]
+        $ScmEndpoint,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Setting,        
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String]
+        $AccessToken,      
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object]
+        $PublishingCredential       
+    )
+
+    switch ($PSCmdlet.ParameterSetName) {
+        "PublishingCredential" {
+            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
+            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+            $Headers=GetKuduHeaders -AccessToken $AccessToken
+        }
+    }
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path+="api/diagnostics/settings"
+    if([String]::IsNullOrEmpty($DeploymentId) -eq $false)
+    {
+        $KuduUriBld.Path+="/$Setting"
+    }
+    $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
+    Write-Output $KuduResult
+}
 
 #Logs
 #/api/logs/recent
