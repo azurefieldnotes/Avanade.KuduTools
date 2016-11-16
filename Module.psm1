@@ -670,7 +670,7 @@ Function Get-KuduDiagnosticSetting
 
 #Logs
 #/api/logs/recent
-Get-KuduRecentLog
+Function Get-KuduRecentLog
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
@@ -709,7 +709,7 @@ Get-KuduRecentLog
 }
 
 #Webjobs
-Get-KuduWebJob
+Function Get-KuduWebJob
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
