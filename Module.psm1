@@ -38,7 +38,8 @@ Function GetKuduHeaders
     return $Headers     
 }
 
-Function Get-KuduProcessList
+#api/processes
+Function Get-KuduProcess
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
@@ -61,20 +62,23 @@ Function Get-KuduProcessList
         $PublishingCredential    
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
     }
-
-    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
+    }
     $KuduUriBld.Path+="/api/processes"
     $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
     Write-Output $KuduResult
 }
 
+#api/processes
 Function Get-KuduProcessMiniDump
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -103,15 +107,17 @@ Function Get-KuduProcessMiniDump
         $PublishingCredential   
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
     }
-
-    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
+    }
     $KuduUriBld.Path+="api/processes"
     if([String]::IsNullOrEmpty($FilePath) -eq $false) {
         $KuduUriBld.Path+="/$ProcessId"
@@ -129,6 +135,7 @@ Function Get-KuduProcessMiniDump
     }
 }
 
+#api/diagnostics/runtime
 Function Get-KuduRuntimeVersions
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -152,19 +159,24 @@ Function Get-KuduRuntimeVersions
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    $KuduUriBld.Path+="/api/diagnostics/runtime"
+    $KuduUriBld.Path+="api/diagnostics/runtime"
     $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
     return $KuduResult
 }
 
+#api/environment
 Function Get-KuduEnvironment
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -188,19 +200,23 @@ Function Get-KuduEnvironment
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
     }
-    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    $KuduUriBld.Path+="/api/environment"
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
+    }
+    $KuduUriBld.Path+="api/environment"
     $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
     return $KuduResult
 }
 
+#api/settings
 Function Get-KuduSetting
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -209,7 +225,7 @@ Function Get-KuduSetting
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
-        $ScmEndpoint,
+        $ScmEndpoint,        
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
@@ -229,12 +245,16 @@ Function Get-KuduSetting
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path+="/api/settings"
@@ -245,6 +265,7 @@ Function Get-KuduSetting
     return $KuduResult
 }
 
+#api/deployments
 Function Get-KuduDeployment
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -254,6 +275,12 @@ Function Get-KuduDeployment
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
         $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,        
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
@@ -266,13 +293,16 @@ Function Get-KuduDeployment
         [System.Object]
         $PublishingCredential       
     )
-
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path+="api/deployments"
@@ -282,9 +312,9 @@ Function Get-KuduDeployment
     }
     $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
     Write-Output $KuduResult
-
 }
 
+#/api/scm/info
 Function Get-KuduSourceControlInfo
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -308,12 +338,16 @@ Function Get-KuduSourceControlInfo
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path+="/api/scm/info"
@@ -357,14 +391,17 @@ Function Get-KuduVfsChildItem
         $Recurse
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
     }
-
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
+    }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/vfs/"
     if([String]::IsNullOrEmpty($Path) -eq $false)
@@ -426,7 +463,13 @@ Function Copy-KuduItem
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
-        $ScmEndpoint,  
+        $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,                
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.String]
         $AccessToken,      
@@ -447,15 +490,19 @@ Function Copy-KuduItem
 
     BEGIN
     {
-        switch ($PSCmdlet.ParameterSetName) {
-            "PublishingCredential" {
-                $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-                $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-                $Headers=GetKuduHeaders -AccessToken $AccessToken
-            }
+        if ($PSCmdlet.ParameterSetName -eq 'basic') {
+            $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
         }
+        elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+            $Headers=GetKuduHeaders -AccessToken $AccessToken
+        }
+        elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+            [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+            $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
+        }
+        $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
         $UserAgent = "powershell/avanade"
-        $KuduBriBld=New-Object System.UriBuilder($ScmEndpoint)
         if([String]::IsNullOrEmpty($Destination)) {
             $KuduBriBld.Path="api/vfs/"
         }
@@ -566,19 +613,23 @@ Function Invoke-KuduCommand
         $PublishingCredential
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
     }
-    $CommandToRun=New-Object PSObject -Property @{
-        command=$Command;
-        dir=$Directory;
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/command"
+    $CommandToRun=New-Object PSObject -Property @{
+        command=$Command;
+        dir=$Directory;
+    }    
     $CmdResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -Method Post -Body $CommandToRun -ContentType 'application/json'
     Write-Output $CmdResult
 }
@@ -594,6 +645,12 @@ Function Get-KuduDump
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
         $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,     
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
@@ -611,12 +668,17 @@ Function Get-KuduDump
         [System.Object]
         $PublishingCredential       
     )
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/dump"
@@ -638,6 +700,12 @@ Function Get-KuduDiagnosticSetting
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
         $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,        
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
@@ -651,12 +719,16 @@ Function Get-KuduDiagnosticSetting
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/diagnostics/settings"
@@ -678,7 +750,13 @@ Function Get-KuduRecentLog
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
-        $ScmEndpoint,      
+        $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,            
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.String]
         $AccessToken,
@@ -692,12 +770,16 @@ Function Get-KuduRecentLog
         [System.Object]
         $PublishingCredential       
     )
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/logs/recent"
@@ -717,7 +799,13 @@ Function Get-KuduWebJob
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.Uri]
-        $ScmEndpoint,      
+        $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String]
+        $PublishingSecret,              
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
         [System.String]
         $AccessToken,
@@ -736,12 +824,16 @@ Function Get-KuduWebJob
         $PublishingCredential       
     )
 
-    switch ($PSCmdlet.ParameterSetName) {
-        "PublishingCredential" {
-            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'basic') {
+        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
+        $Headers=GetKuduHeaders -AccessToken $AccessToken
+    }
+    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
+        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
+        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
     }
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     if ($Triggered.IsPresent) {
