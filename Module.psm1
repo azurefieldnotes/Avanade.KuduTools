@@ -323,6 +323,7 @@ Function Get-KuduSourceControlInfo
 }
 
 #VFS
+#/api/vfs
 Function Get-KuduVfsChildItem
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -416,7 +417,7 @@ Function Get-KuduVfsChildItem
         Write-Warning $_.Message
     }
 }
-
+#/api/vfs
 Function Copy-KuduItem
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -477,6 +478,7 @@ Function Copy-KuduItem
 }
 
 #Zip
+#api/zip
 Function Compress-KuduPath
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -530,6 +532,7 @@ Function Compress-KuduPath
 }
 
 #Execute Command
+#api/command
 Function Invoke-KuduCommand
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -625,6 +628,7 @@ Function Get-KuduDump
 }
 
 #Diagnostics/Settings
+#api/diagnostics/settings
 Function Get-KuduDiagnosticSetting
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -666,5 +670,42 @@ Function Get-KuduDiagnosticSetting
 
 #Logs
 #/api/logs/recent
+Get-KuduRecentLog
+{
+    [CmdletBinding(DefaultParameterSetName='AAD')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.Uri]
+        $ScmEndpoint,      
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String]
+        $AccessToken,
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [ValidateRange(1,1000)]
+        [System.Int32]
+        $Top, 
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object]
+        $PublishingCredential       
+    )
+    switch ($PSCmdlet.ParameterSetName) {
+        "PublishingCredential" {
+            $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
+            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
+            $Headers=GetKuduHeaders -AccessToken $AccessToken
+        }
+    }
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/logs/recent"
+    if ($Top -gt 0) {
+        $KuduUriBld.Query="top=$Top"
+    }
+    $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType 'application/json'
+    Write-Output $KuduResult
+}
 
 #Webjobs
