@@ -662,67 +662,69 @@ Function Get-KuduVfsChildItem
     }
 }
 #/api/vfs
-Function Copy-KuduItem
+Function Copy-KuduVfsItem
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
     (
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
         [System.String]
+        $Path,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Destination,                      
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
         $PublishingUsername,
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String]
-        $PublishingSecret,                
+        [System.String[]]
+        $PublishingSecret,           
         [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String]
+        [System.String[]]
         $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.Object]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.IO.String[]]
-        $Path,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Destination
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object[]]
+        $PublishingCredential 
     )
-
     BEGIN
     {
-        if ($PSCmdlet.ParameterSetName -eq 'basic') {
-            $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-        }
-        elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
-            $Headers=GetKuduHeaders -AccessToken $AccessToken
-        }
-        elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
-            [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-            $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
-        }
-        $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
         $UserAgent = "powershell/avanade"
-        if([String]::IsNullOrEmpty($Destination)) {
-            $KuduBriBld.Path="api/vfs/"
-        }
-        else {
-            $KuduBriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
-        }
     }
     PROCESS
     {
-        foreach ($item in $path)
+        switch ($PSCmdlet.ParameterSetName) {
+            'basic' { 
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+            }
+            'AAD' {
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
+            }
+            'PublishingCredential' {
+                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
+            }
+        }
+        foreach ($KuduConnection in $KuduConnections)
         {
-            Write-Verbose "Uploading $item to $($KuduBriBld.Uri)"
-            Invoke-RestMethod -Uri $KuduBriBld.Uri -Headers $Headers -Method Put -InFile $item -UserAgent $UserAgent -ContentType "multipart/form-data"
+            try
+            {
+                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+                if([String]::IsNullOrEmpty($Destination)) {
+                    $KuduUriBld.Path="api/vfs/"
+                }
+                else {
+                    $KuduUriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
+                }
+                Write-Verbose "Uploading $Path to $($KuduUriBld.Uri)"
+                Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -Method Put -InFile $item -UserAgent $UserAgent -ContentType "multipart/form-data"                
+            }
+            catch [System.Exception]
+            {
+                
+            }   
         }
     }
     END
@@ -731,53 +733,75 @@ Function Copy-KuduItem
     }
 }
 
+
 #Zip
 #api/zip
-<#
 Function Compress-KuduPath
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
     (
         [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri]
-        $ScmEndpoint,  
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
         [System.String]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.Object]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.String[]]
         $Path,
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
         [System.String]
-        $Destination
+        $Destination,        
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [System.String]
+        $Directory='SystemDrive/Windows/System32',        
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingSecret,           
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String[]]
+        $AccessToken,      
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object[]]
+        $PublishingCredential 
     )
 
     BEGIN
     {
-        switch ($PSCmdlet.ParameterSetName) {
-            "PublishingCredential" {
-                $PcUriBld=New-Object System.Uri($PublishingCredential.properties.scmUri)
-                $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-                $Headers=GetKuduHeaders -AccessToken $AccessToken
-            }
+        if ((Test-Path -Path $Destination) -eq $false) {
+            Write-Verbose "$Destination does not exist! Attempting to create..."
+            New-Item -Path (Split-Path $Destination -Parent) -Name (Split-Path $Destination -Parent) -Force|Out-Null
         }
-        $KuduBriBld=New-Object System.UriBuilder($ScmEndpoint)
-        $KuduBriBld.Path="api/zip/$($Path.TrimEnd('/'))"
     }
     PROCESS
     {
-        foreach ($item in $path)
+        switch ($PSCmdlet.ParameterSetName) {
+            'basic' {
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+            }
+            'AAD' {           
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
+            }
+            'PublishingCredential' {           
+                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
+            }
+        }
+        foreach ($KuduConnection in $KuduConnections)
         {
-
+            try 
+            {
+                $OutFile=Join-Path $Destination "$($KuduUriBld.Host)-$($Path.Replace("/","_")).zip"
+                $KuduBriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+                $KuduBriBld.Path="api/zip/$($Path.TrimEnd('/'))/"
+                $Result=Invoke-RestMethod -Uri $KuduBriBld.Uri -Headers $KuduConnection.Headers -OutFile $OutFile -ErrorAction Stop                
+            }
+            catch [System.Exception] {
+                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
+            }
         }
     }
     END
@@ -785,7 +809,7 @@ Function Compress-KuduPath
 
     }
 }
-#>
+
 
 #Execute Command
 #api/command
@@ -886,10 +910,12 @@ Function Get-KuduDump
         [System.String[]]
         $AccessToken      
     )
-
     BEGIN
     {
-
+        if ((Test-Path -Path $Destination) -eq $false) {
+            Write-Verbose "$Destination does not exist! Attempting to create..."
+            New-Item -Path (Split-Path $Destination -Parent) -Name (Split-Path $Destination -Parent) -Force|Out-Null
+        }
     }
     PROCESS
     {
@@ -910,16 +936,13 @@ Function Get-KuduDump
             {
                 $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
                 $KuduUriBld.Path="api/dump"
-                if ((Test-Path -Path $Destination) -eq $false) {
-                    New-Item -Path (Split-Path $Destination -Parent) -Name (Split-Path $Destination -Parent) -Force|Out-Null
-                }
-                $FileName="$($KuduUriBld.Host)-$(Get-Date -Format "hh_mm_ss-dd_MM_yyyy").zip"
+                $FileName="$($KuduUriBld.Host)-$(Get-Date -Format "hh_mm_ss-dd_MM_yyyy")-dump.zip"
                 $OutFile=Join-Path $Destination $FileName
                 $Result=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -OutFile $OutFile -UseBasicParsing -ErrorAction Stop                
             }
             catch [System.Exception]
             {
-                
+                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
             }
         }
     }
