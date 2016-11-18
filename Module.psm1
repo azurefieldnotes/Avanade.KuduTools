@@ -2,86 +2,6 @@
     Avanade.KuduTools
 #>
 
-Function GetKuduHeaders
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (   
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential       
-    )
-
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        if ($PSCmdlet.ParameterSetName -eq 'AAD') {
-            foreach ($token in $AccessToken) {
-                $AadHeader=@{'Authorization'="Bearer $AccessToken"}
-                Write-Output $AadHeader
-            }
-            
-        }
-        else {
-            if ($PSCmdlet.ParameterSetName -eq 'PublishingCredential') {
-                foreach ($cred in $PublishingCredential) {
-                    $PublishingUsername+=$PublishingCredential.properties.publishingUserName
-                    $PublishingSecret+=$PublishingCredential.properties.publishingPassword
-                }
-            }
-            for ($i = 0; $i -lt $PublishingUsername.Count; $i++) {
-                $AuthInfo="$($PublishingUsername[$i]):$($PublishingSecret[$i])"
-                $BasicCredential = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AuthInfo))
-                $BasicHeader=@{'Authorization'="Basic $BasicCredential"}
-                Write-Output $BasicHeader
-            }
-        }
-    }
-    END
-    {
-
-    }
-}
-
-Function GetKuduUri
-{
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential
-    )
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        foreach ($item in $PublishingCredential) {
-            [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
-            $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host)/$($PcUriBld.PathAndQuery)")
-            Write-Output $ScmEndpoint            
-        }
-    }
-    END
-    {
-
-    }
-}
-
 Function GetKuduConnection
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -570,95 +490,100 @@ Function Get-KuduVfsChildItem
     [CmdletBinding(DefaultParameterSetName='AAD')]
     param
     (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri]
-        $ScmEndpoint,
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
         [System.String]
         $Path,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String]
-        $PublishingSecret,        
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object]
-        $PublishingCredential,
         [Parameter(Mandatory=$false,ParameterSetName='basic')]
         [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
         [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
         [Switch]
-        $Recurse
+        $Recurse,                   
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingSecret,           
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.String[]]
+        $AccessToken,      
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object[]]
+        $PublishingCredential 
     )
-
-    if ($PSCmdlet.ParameterSetName -eq 'basic') {
-        $Headers=GetKuduHeaders -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-    }
-    elseif ($PSCmdlet.ParameterSetName -eq 'AAD') {
-        $Headers=GetKuduHeaders -AccessToken $AccessToken
-    }
-    elseif ($PSCmdlet.ParameterSetName -eq "PublishingCredential") {
-        [Uri]$PcUriBld=$PublishingCredential.properties.scmUri
-        $ScmEndpoint=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host):$($PcUriBld.PathAndQuery)")
-        $Headers=GetKuduHeaders -PublishingCredential $PublishingCredential
-    }
-    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    $KuduUriBld.Path="api/vfs/"
-    if([String]::IsNullOrEmpty($Path) -eq $false)
+    BEGIN
     {
-        $KuduUriBld.Path+="$Path"
     }
-    try
+    PROCESS
     {
-        $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -ContentType "application/json"
-        if($Recurse.IsPresent) {
-            foreach ($item in $KuduResult)
-            {
-                if($item.mime -in "inode/directory","inode/shortcut") {
-                    $Uri=New-Object System.Uri($item.href.ToLower())
-                    $SubPath=$Uri.AbsolutePath.Replace("/api/vfs/",[String]::Empty)
-                    if($SubPath -ne "systemdrive/") {
-                        switch ($PSCmdlet.ParameterSetName)
-                        {
-                            "AAD" {
-                                $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint -Path $SubPath `
-                                    -AccessToken $AccessToken -Recurse -ErrorAction 'Continue'
-                            }
-                            "basic" {
-                                $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint -Path $SubPath `
-                                    -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret `
-                                    -Recurse -ErrorAction 'Continue'
-                            }
-                            "PublishingCredential" {
-                                $DirResult=Get-KuduWebsiteVfsChildItem -Path $SubPath -PublishingCredential $PublishingCredential `
-                                    -Recurse -ErrorAction 'Continue'
-                            }
-                        }
-                        if($DirResult -ne $null) {
-                            Write-Output $DirResult
-                        }
-                    }
-                    else {
-                        Write-Warning "The SystemDrive alias is skipped as it is redundant."
-                    }
-                }
-                Write-Output $item
+        switch ($PSCmdlet.ParameterSetName) {
+            'basic' { 
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+            }
+            'AAD' {
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
+            }
+            'PublishingCredential' {
+                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
             }
         }
-        else {
-            Write-Output $KuduResult
+        foreach ($KuduConnection in $KuduConnections)
+        {
+            $i=KuduConnections.IndexOf($KuduConnection)
+            $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+            $KuduUriBld.Path="api/vfs/"
+            if([String]::IsNullOrEmpty($Path) -eq $false) {
+                $KuduUriBld.Path+="$Path"
+            }
+            try
+            {
+                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
+                if ($KuduResult -ne $null -and $Recurse.IsPresent) {
+                    foreach ($item in $KuduResult)
+                    {
+                        if ($item.mime -in "inode/directory","inode/shortcut") {
+                            $ItemUri=New-Object System.Uri($item.href.ToLower())
+                            $SubPath=$ItemUri.AbsolutePath.Replace("/api/vfs/",[String]::Empty)
+                            if($SubPath -ne "systemdrive/") {
+                                switch ($PSCmdlet.ParameterSetName)
+                                {
+                                    "AAD" {
+                                        $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint[$i] -Path $SubPath `
+                                            -AccessToken $AccessToken[$i] -Recurse -ErrorAction 'Continue'
+                                    }
+                                    "basic" {
+                                        $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint[$i] -Path $SubPath `
+                                            -PublishingUsername $PublishingUsername[$i] -PublishingSecret $PublishingSecret[$i] `
+                                            -Recurse -ErrorAction 'Continue'
+                                    }
+                                    "PublishingCredential" {
+                                        $DirResult=Get-KuduWebsiteVfsChildItem -Path $SubPath -PublishingCredential $PublishingCredential[$i] `
+                                            -Recurse -ErrorAction 'Continue'
+                                    }
+                                }
+                                if($DirResult -ne $null) {
+                                    Write-Output $DirResult
+                                }
+                            }
+                            else {
+                                Write-Warning "The SystemDrive alias is skipped as it is redundant."
+                            }                                                 
+                        }
+                    }
+                }
+                else {
+                    Write-Output $KuduResult
+                }
+            }
+            catch [System.Exception] {
+                Write-Warning "$($KuduConnection.ScmEndpoint) $_"   
+            }            
         }
     }
-    catch
+    END
     {
-        Write-Warning $_.Message
     }
 }
 #/api/vfs
@@ -719,11 +644,12 @@ Function Copy-KuduVfsItem
                     $KuduUriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
                 }
                 Write-Verbose "Uploading $Path to $($KuduUriBld.Uri)"
-                Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -Method Put -InFile $item -UserAgent $UserAgent -ContentType "multipart/form-data"                
+                Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -Method Put `
+                    -InFile $Path -UserAgent $UserAgent -ContentType "multipart/form-data"                
             }
             catch [System.Exception]
             {
-                
+                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
             }   
         }
     }
@@ -732,7 +658,6 @@ Function Copy-KuduVfsItem
 
     }
 }
-
 
 #Zip
 #api/zip
@@ -809,7 +734,6 @@ Function Compress-KuduPath
 
     }
 }
-
 
 #Execute Command
 #api/command
