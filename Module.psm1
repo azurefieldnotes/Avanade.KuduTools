@@ -2,6 +2,20 @@
     Avanade.KuduTools
 #>
 
+<#
+    .SYNOPSIS
+        Returns an object with the Kudu Uri and the Authorization Headers
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function GetKuduConnection
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -74,6 +88,20 @@ Function GetKuduConnection
 
 #Processes
 #api/processes
+<#
+    .SYNOPSIS
+        Returns the process(es) running on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduProcess
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -106,7 +134,6 @@ Function Get-KuduProcess
         [System.String[]]
         $ProcessName
     )
-
     BEGIN
     {
 
@@ -167,9 +194,111 @@ Function Get-KuduProcess
 }
 
 #api/processes
+<#
+    .SYNOPSIS
+        Returns the process dump(s) running on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
+Function Get-KuduProcessMinidump
+{
+    [CmdletBinding(DefaultParameterSetName='AAD')]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
+        [System.Uri[]]
+        $ScmEndpoint,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingUsername,
+        [Parameter(Mandatory=$true,ParameterSetName='basic')]
+        [System.String[]]
+        $PublishingSecret,           
+        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
+        [System.String[]]
+        $AccessToken,      
+        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
+        [System.Object[]]
+        $PublishingCredential,        
+        [Parameter(Mandatory=$false,ParameterSetName='basic')]
+        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
+        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [System.Int32[]]
+        $ProcessId
+    )
+    BEGIN
+    {
 
+    }
+    PROCESS
+    {
+        switch ($PSCmdlet.ParameterSetName) {
+            'basic' { 
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
+            }
+            'AAD' {
+                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
+            }
+            'PublishingCredential' {
+                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
+            }
+        }
+        foreach ($KuduConnection in $KuduConnections)
+        {
+            $i=$KuduConnections.IndexOf($KuduConnection)
+            $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+            $KuduUriBld.Path="api/processes"
+            if ($ProcessId.Count -gt 0) {
+                $KuduUriBld.Path="api/processes/$ProcessId[$i]"
+                $ProcResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
+                if ($ProcResult -ne $null) {
+                    Write-Output $ProcResult
+                }               
+            }
+            else {
+                $ProcessList=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
+                foreach ($ProcessItem in $ProcessList)
+                {
+                    $KuduUriBld.Path="api/processes/$($ProcessItem.id)"
+                    $ProcResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
+                    if ($ProcResult -ne $null) {
+                        Write-Output $ProcResult
+                    }
+                }
+            }
+
+        }
+    }
+    END
+    {
+
+    }
+}
 
 #api/diagnostics/runtime
+<#
+    .SYNOPSIS
+        Returns runtime versions running on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduRuntimeVersions
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -223,6 +352,20 @@ Function Get-KuduRuntimeVersions
 }
 
 #/api/scm/info
+<#
+    .SYNOPSIS
+        Returns source control respository info running on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduSourceControlInfo
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -285,6 +428,20 @@ Function Get-KuduSourceControlInfo
 }
 
 #api/environment
+<#
+    .SYNOPSIS
+        Returns source control environment details on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduEnvironment
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -346,6 +503,20 @@ Function Get-KuduEnvironment
 }
 
 #api/settings
+<#
+    .SYNOPSIS
+        Returns Kudu settings on the App Service instance
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduSetting
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -415,6 +586,22 @@ Function Get-KuduSetting
 }
 
 #api/deployments
+<#
+    .SYNOPSIS
+        Retrurns the deployment(s)
+    .PARAMETER DeploymentId
+        The deployment id
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduDeployment
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -485,6 +672,18 @@ Function Get-KuduDeployment
 
 #VFS
 #/api/vfs
+<#
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduVfsChildItem
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -587,6 +786,18 @@ Function Get-KuduVfsChildItem
     }
 }
 #/api/vfs
+<#
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Copy-KuduVfsItem
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -661,6 +872,24 @@ Function Copy-KuduVfsItem
 
 #Zip
 #api/zip
+<#
+    .SYNOPSIS
+        Downloads the specified path compressed as a zip
+    .PARAMETER Path
+        The Kudu vfs path to compress
+    .PARAMETER Destination
+        The Destination path
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Compress-KuduPath
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -737,6 +966,22 @@ Function Compress-KuduPath
 
 #Execute Command
 #api/command
+<#
+    .PARAMETER Command
+        The command to be executed
+    .PARAMETER Directory
+        The working directory
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Invoke-KuduCommand
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -807,6 +1052,20 @@ Function Invoke-KuduCommand
 
 #Diagnostics
 #/api/dump
+<#
+    .PARAMETER Destination
+        The path to download the dump file to
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduDump
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -878,6 +1137,20 @@ Function Get-KuduDump
 
 #Diagnostics/Settings
 #api/diagnostics/settings
+<#
+    .SYNOPSIS
+        Retrieve the Diagnostic setting(s)
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduDiagnosticSetting
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -952,6 +1225,20 @@ Function Get-KuduDiagnosticSetting
 
 #Logs
 #/api/logs/recent
+<#
+    .PARAMETER Top
+        Limit to the top N results
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduRecentLog
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
@@ -1025,6 +1312,24 @@ Function Get-KuduRecentLog
 }
 
 #Webjobs
+<#
+    .SYNOPSIS
+        Retrieve the web jobs
+    .PARAMETER Continuous
+        Retrieve continuous web jobs
+    .PARAMETER Triggered
+        Retrieve triggered web jobs
+    .PARAMETER ScmEndpoint
+        The Kudu Uri
+    .PARAMETER AccessToken
+        An Azure AD Token
+    .PARAMETER PublishingUsername
+        The Kudu publishing username
+    .PARAMETER PublishingSecret
+        The Kudu publishing password
+    .PARAMETER PublishingCredential
+        The Azure App Service Web Site publishing credential
+#>
 Function Get-KuduWebJob
 {
     [CmdletBinding(DefaultParameterSetName='AAD')]
