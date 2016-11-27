@@ -50,6 +50,7 @@ function GetKuduResult
         [String]
         $AccessToken  
     )
+    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
@@ -80,6 +81,7 @@ function PostKuduResult
         [String]
         $AccessToken  
     )
+    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
@@ -90,15 +92,11 @@ function PostKuduResult
     return $KuduResult
 }
 
-function PostKuduFile
+function DeleteKuduResult
 {
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
-        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $Path,
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [uri]
@@ -110,13 +108,85 @@ function PostKuduFile
         [String]
         $AccessToken  
     )
+    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
     else {
         $Headers=@{Authorization="Bearer $AccessToken"}
     }    
-    Invoke-RestMethod -Uri $Uri -Headers $Headers -InFile $Path -ContentType "multipart/form-data" -Method Post -UserAgent "powershell/avanade" -ErrorAction Stop    
+    $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -Method Delete -ErrorAction Stop
+    return $KuduResult
+}
+
+function UploadKuduFile
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $Path,
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $Uri,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [ValidateSet('GET','PUT','POST')]
+        [string]
+        $Method='POST',              
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }    
+    Invoke-RestMethod -Uri $Uri -Headers $Headers -InFile $Path -ContentType "multipart/form-data" -Method $Method -UserAgent "powershell/avanade" -ErrorAction Stop    
+}
+
+function SaveKuduFile
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $OutFile,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [ValidateSet('GET','PUT','POST')]
+        [string]
+        $Method='GET',  
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $Uri,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }
+    $Result=Invoke-RestMethod -Uri $Uri -Headers $Headers -Method $Method -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
 }
 
 #endregion
@@ -183,6 +253,7 @@ function Get-KuduProcess
     else {
         $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken    
     }
+    #region Process Results
     if ($Id -ne $null)
     {
         foreach ($i in $Id)
@@ -207,6 +278,7 @@ function Get-KuduProcess
     {
         Write-Output $KuduResult
     }
+    #endregion
 }
 
 function Get-KuduProcessMinidump
@@ -264,9 +336,12 @@ function Get-KuduRuntimeVersions
     $KuduUriBld.Path="api/diagnostics/runtime"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         
-        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    else {
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    }
+    Write-Output $KuduResult
 }
 
 function Get-KuduSourceControlInfo
@@ -293,6 +368,58 @@ function Get-KuduSourceControlInfo
     return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 }
 
+function Clear-KuduSourceControlRepository
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/scm/clean"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+    }
+    else {
+        PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    }
+}
+
+function Remove-KuduSourceControlRepository
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/scm"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        DeleteKuduResult -Uri $KuduUriBld.Path -Credential $Credential
+    }
+    else {
+        DeleteKuduResult -Uri $KuduUriBld.Path -AccessToken $AccessToken
+    }   
+}
+
 function Get-KuduEnvironment
 {
     [CmdletBinding()]
@@ -313,9 +440,12 @@ function Get-KuduEnvironment
     $KuduUriBld.Path="api/environment"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         
-        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    else {
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    }
+    Write-Output $KuduResult
 }
 
 function Get-KuduSetting
@@ -440,7 +570,8 @@ function Get-KuduDeploymentLog
         $AccessToken  
     )
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    foreach ($item in $Id) {
+    foreach ($item in $Id)
+    {
         $KuduUriBld.Path="api/deployments/$item/log"
         if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
             $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
@@ -610,19 +741,18 @@ function Save-KuduDump
     $FileName="$($KuduUriBld.Host)-$(Get-Date -Format "hh_mm_ss-dd_MM_yyyy")-dump.zip"
     $OutFile=Join-Path $Destination $FileName
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+        SaveKuduFile -Uri $KuduUriBld.Uri -OutFile $OutFile -Credential $Credential -Method GET
     }
     else {
-        $Headers=@{Authorization="Bearer $AccessToken"}
-    }
-    $Result=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -OutFile $OutFile -UseBasicParsing -ErrorAction Stop  
+        SaveKuduFile -Uri $KuduUriBld.Uri -OutFile $OutFile -AccessToken $AccessToken -Method GET
+    }  
 }
 
 function Invoke-KuduCommand
 {
     [CmdletBinding()]
     param
-    (        
+    (   
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [string]
@@ -648,10 +778,15 @@ function Invoke-KuduCommand
         command=$Command;
         dir=$Directory;
     }    
-    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        return PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential -Body ($CommandToRun|ConvertTo-Json)
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential')
+    {
+        $KuduResult=PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential -Body ($CommandToRun|ConvertTo-Json)
     }
-    return PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body ($CommandToRun|ConvertTo-Json)
+    else 
+    {
+        $KuduResult=PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body ($CommandToRun|ConvertTo-Json)
+    }
+    Write-Output $KuduResult
 }
 
 function Get-KuduVfsChildItem
@@ -678,7 +813,6 @@ function Get-KuduVfsChildItem
         [string]
         $AccessToken  
     )
-    $VfsItems=@()
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/vfs/$($Path.TrimEnd('/'))/"
     try 
@@ -693,17 +827,20 @@ function Get-KuduVfsChildItem
         {
             foreach ($item in $KuduResult)
             {
-                $VfsItems+=$item
+                Write-Output $item
                 if ($item.mime -in "inode/directory","inode/shortcut")
                 {
                     $ItemUri=New-Object System.Uri($item.href.ToLower())
                     $SubPath=$ItemUri.AbsolutePath.Replace("/api/vfs/",[String]::Empty)
                     if ($SubPath -ne "systemdrive/") {
                         if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-                            $VfsItems+=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -Credential $Credential -Recurse
+                            $VfsResult=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -Credential $Credential -Recurse
                         }
                         else {
-                            $VfsItems+=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken -Recurse
+                            $VfsResult=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken -Recurse
+                        }
+                        if ($VfsResult -ne $null) {
+                            Write-Output $VfsResult
                         }
                     }
                 }
@@ -711,13 +848,12 @@ function Get-KuduVfsChildItem
         }
         else
         {
-            $VfsItems=$KuduResult    
+            Write-Output $KuduResult    
         }
     }
     catch [System.Exception] {
         Write-Warning "[Get-KuduVfsChildItem] $ScmEndpoint $_"
     }
-    return $VfsItems
 }
 
 function Copy-KuduVfsItem
@@ -751,10 +887,82 @@ function Copy-KuduVfsItem
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        PostKuduFile -Path $Path -Uri $KuduUriBld.Uri -Credential $Credential  
+        UploadKuduFile -Path $Path -Uri $KuduUriBld.Uri -Credential $Credential -Method POST  
     }
     else {
-        PostKuduFile -Path $Path -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+        UploadKuduFile -Path $Path -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Method POST
     }
     
+}
+
+function Compress-KuduPath
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string[]]
+        $Path,
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $Destination,             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken  
+    )
+    $KuduBriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+    $OutFile=Join-Path $Destination "$($KuduUriBld.Host)-$($Path.Replace("/","_")).zip"
+    foreach ($item in $Path)
+    {
+        $KuduBriBld.Path="api/zip/$($item.TrimEnd('/'))/"
+        if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+            SaveKuduFile -OutFile $OutFile -Uri $KuduBriBld.Uri -Method GET -Credential $Credential
+        }
+        else {
+            SaveKuduFile -OutFile $OutFile -Uri $KuduBriBld.Uri -Method GET -AccessToken $AccessToken
+        }
+    }
+}
+
+function Expand-KuduVfsZipFile
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Path,
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $Destination,             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken  
+    )
+    $KuduBriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
+    $KuduBriBld.Path="api/zip/$($Path.TrimEnd('/'))"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        UploadKuduFile -Path $Path -Uri $KuduBriBld.Uri -Method PUT -Credential $Credential
+    }
+    else {
+        UploadKuduFile -Path $Path -Uri $KuduBriBld.Uri -Method PUT -AccessToken $AccessToken
+    }    
 }
