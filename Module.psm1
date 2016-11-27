@@ -90,7 +90,7 @@ function PostKuduResult
     return $KuduResult
 }
 
-function PutKuduFile
+function PostKuduFile
 {
     [CmdletBinding()]
     param
@@ -120,6 +120,36 @@ function PutKuduFile
 }
 
 #endregion
+
+function ConvertTo-KuduConnection 
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [Uri[]]
+        $Uri
+    )
+    begin
+    {
+    }
+    process
+    {
+        foreach ($item in $Uri) 
+        {
+            $UserName=$item.UserInfo.Split(':')|Select-Object -First 1
+            $Password=$item.UserInfo.Split(':')|Select-Object -Last 1
+            $KuduConnection=New-Object PSObject -Property @{
+                ScmEndpoint=[Uri]"$($item.Scheme)://$($item.Host)";
+                Credential=New-Object pscredential($UserName,($Password|ConvertTo-SecureString -AsPlainText -Force));
+            }
+            Write-Output $KuduConnection
+        }
+    }
+    end
+    {
+    }
+}
 
 function Get-KuduProcess 
 {
@@ -265,7 +295,7 @@ function Get-KuduEnvironment
         $AccessToken  
     )
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
-    $KuduUriBld.Path="api/enviroment"
+    $KuduUriBld.Path="api/environment"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         
         return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
@@ -518,4 +548,109 @@ function Invoke-KuduCommand
         return PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential -Body $CommandToRun
     }
     return PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body $CommandToRun
+}
+
+function Get-KuduVfsChildItem
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Path='/',
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Switch]
+        $Recurse,             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken  
+    )
+    $VfsItems=@()
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/vfs/$($Path.TrimEnd('/'))/"
+    try 
+    {
+        if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+            $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+        }
+        else {
+            $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+        }
+        if ($KuduResult -ne $null -and $Recurse.IsPresent)
+        {
+            foreach ($item in $KuduResult)
+            {
+                $VfsItems+=$item
+                if ($item.mime -in "inode/directory","inode/shortcut")
+                {
+                    $ItemUri=New-Object System.Uri($item.href.ToLower())
+                    $SubPath=$ItemUri.AbsolutePath.Replace("/api/vfs/",[String]::Empty)
+                    if ($SubPath -ne "systemdrive/") {
+                        if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+                            $VfsItems+=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -Credential $Credential -Recurse
+                        }
+                        else {
+                            $VfsItems+=Get-KuduVfsChildItem -Path $SubPath -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken -Recurse
+                        }
+                    }
+                }
+            }            
+        }
+        else
+        {
+            $VfsItems=$KuduResult    
+        }
+    }
+    catch [System.Exception] {
+        Write-Warning "[Get-KuduVfsChildItem] $ScmEndpoint $_"
+    }
+    return $VfsItems
+}
+
+function Copy-KuduVfsItem
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Path,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Destination,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Switch]
+        $Recurse,             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        PostKuduFile -Path $Path -Uri $KuduUriBld.Uri -Credential $Credential  
+    }
+    else {
+        PostKuduFile -Path $Path -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+    }
+    
 }
