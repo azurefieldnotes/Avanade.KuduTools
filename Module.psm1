@@ -1,1412 +1,521 @@
-﻿<#
+<#
     Avanade.KuduTools
 #>
 
-<#
-    .SYNOPSIS
-        Returns an object with the Kudu Uri and the Authorization Headers
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function GetKuduConnection
+#region Helpers
+
+function ConvertCredentialToBasicAuth
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (   
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
+    (
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true)]
+        [pscredential[]]
+        $Credential
+    )
+    begin 
+    {
+
+    }
+    
+    process 
+    {
+        foreach ($item in $Credential)
+        {
+            $AuthInfo="$($item.UserName):$($item.GetNetworkCredential().Password)"
+            $BasicCredential = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AuthInfo))
+            Write-Output $BasicCredential
+        }
+    }
+    
+    end 
+    {
+
+    }
+}
+
+function GetKuduResult
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $Uri,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }    
+    $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -ErrorAction Stop
+    return $KuduResult
+}
+
+function PostKuduResult
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Object]
+        $Body,
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $Uri,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }    
+    $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -Body $Body -ContentType 'application/json' -Method Post -ErrorAction Stop
+    return $KuduResult
+}
+
+function PutKuduFile
+{
+    [CmdletBinding()]
+    param
+    (
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $Path,
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $Uri,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }    
+    Invoke-RestMethod -Uri $Uri -Headers $Headers -InFile $Path -ContentType "multipart/form-data" -Method Post -UserAgent "powershell/avanade" -ErrorAction Stop    
+}
+
+#endregion
+
+function Get-KuduProcess 
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
         $ScmEndpoint,        
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken,         
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [int]
+        $Id,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Name        
     )
-    BEGIN
-    {
-        $HeaderCollection=@()   
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/processes"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    PROCESS
-    {
-        if ($PSCmdlet.ParameterSetName -eq 'AAD') {
-            if ($ScmEndpoint.Count -ne $AccessToken.Count) {
-                throw "The parameters are not congruent"    
-            }
-            foreach ($tok in $AccessToken) {
-                $HeaderCollection+=@{Authorization="Bearer $tok"}
-            }
-        }
-        elseif ($PSCmdlet.ParameterSetName -eq 'basic') {
-            if (($ScmEndpoint.Count -ne $PublishingUsername.Count) `
-                -or ($ScmEndpoint.Count -ne $PublishingSecret.Count)) {
-                    throw "The parameters are not congruent"
-            }
-            for ($i = 0; $i -lt $ScmEndpoint.Count; $i++) {
-                $AuthInfo="$($PublishingUsername[$i]):$($PublishingSecret[$i])"
-                $BasicCredential = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AuthInfo))
-                $HeaderCollection+=@{'Authorization'="Basic $BasicCredential"}                    
-            }
-        }
-        else {
-            foreach ($item in $PublishingCredential) {
-                $AuthInfo="$($item.properties.publishingUserName):$($item.properties.publishingPassword)"
-                $BasicCredential = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AuthInfo))
-                $HeaderCollection+=@{'Authorization'="Basic $BasicCredential"}
-                [Uri]$PcUriBld=$item.properties.scmUri
-                $ScmEndpoint+=New-Object System.Uri("$($PcUriBld.Scheme)://$($PcUriBld.Host)/$($PcUriBld.PathAndQuery)")                                        
-            }
-        }
-        for ($i = 0; $i -lt $ScmEndpoint.Count; $i++) {
-            $KuduConn=New-Object psobject -Property @{
-                Headers=$HeaderCollection[$i];
-                ScmEndpoint=$ScmEndpoint[$i];
-            }
-            Write-Output $KuduConn
+    else {
+        $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken    
+    }
+    if ($Id -gt 0) {
+        $SpecificProcess=$KuduResult | Where-Object {$_.id -EQ $pid} | Select-Object -First 1
+        if ($SpecificProcess -ne $null) {
+            return $SpecificProcess
         }
     }
-    END
-    {
-
+    elseif ([String]::IsNullOrEmpty($Name) -eq $false) {
+        $SpecificProcess=$KuduResult | Where-Object {$_.name -EQ $Name}
+        if ($SpecificProcess -ne $null) {
+            return $SpecificProcess
+        }
+    }
+    else {
+        return $KuduResult
     }
 }
 
-#Processes
-#api/processes
-<#
-    .SYNOPSIS
-        Returns the process(es) running on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduProcess
+function Get-KuduProcessMinidump
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,        
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.Int32[]]
-        $ProcessId,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String[]]
-        $ProcessName
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken,         
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [int]
+        $Id
     )
-    BEGIN
-    {
-
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/processes/$Id"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections) {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path+="/api/processes"
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                if ($ProcessId.Count -gt 0) {
-                    foreach ($pid in $ProcessId) {
-                        if ($pid -gt 0) {
-                            $SpecificProcess=$KuduResult | Where-Object {$_.id -EQ $pid} | Select-Object -First 1
-                            if ($SpecificProcess -ne $null) {
-                                Write-Output $SpecificProcess
-                            }
-                        }
-                    }
-                }
-                elseif($ProcessName.Count -gt 0){
-                    foreach ($pName in $ProcessName) {
-                        if ([String]::IsNullOrEmpty($pName) -eq $false) {
-                            $SpecificProcess=$KuduResult | Where-Object {$_.name -EQ $pName}
-                            if ($SpecificProcess -ne $null) {
-                                Write-Output $SpecificProcess
-                            }
-                        }
-                    }
-                }
-                else {
-                    Write-Output $KuduResult
-                }
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 }
 
-#api/processes
-<#
-    .SYNOPSIS
-        Returns the process dump(s) running on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduProcessMinidump
+function Get-KuduRuntimeVersions
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,        
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.Int32[]]
-        $ProcessId
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-    BEGIN
-    {
-
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/diagnostics/runtime"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            $i=$KuduConnections.IndexOf($KuduConnection)
-            $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-            $KuduUriBld.Path="api/processes"
-            if ($ProcessId.Count -gt 0) {
-                $KuduUriBld.Path="api/processes/$ProcessId[$i]"
-                $ProcResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
-                if ($ProcResult -ne $null) {
-                    Write-Output $ProcResult
-                }               
-            }
-            else {
-                $ProcessList=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
-                foreach ($ProcessItem in $ProcessList)
-                {
-                    $KuduUriBld.Path="api/processes/$($ProcessItem.id)"
-                    $ProcResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
-                    if ($ProcResult -ne $null) {
-                        Write-Output $ProcResult
-                    }
-                }
-            }
-
-        }
-    }
-    END
-    {
-
-    }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 }
 
-#api/diagnostics/runtime
-<#
-    .SYNOPSIS
-        Returns runtime versions running on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduRuntimeVersions
+function Get-KuduSourceControlInfo
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential       
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'basic' { 
-            $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-        }
-        'AAD' {
-            $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-        }
-        'PublishingCredential' {
-            $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-        }
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/scm/info"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+}
 
-    foreach ($KuduConnection in $KuduConnections)
-    {
-        try
-        {
-            $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-            $KuduUriBld.Path="api/diagnostics/runtime"
-            $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-            Write-Output $KuduResult
-        }
-        catch [System.Exception]
-        {
-            Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-        }
+function Get-KuduEnvironment
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/enviroment"
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
+}
+
+function Get-KuduSetting
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Name,       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/enviroment"
+    if ([String]::IsNullOrEmpty($Name) -eq $false) {
+        $KuduUriBld.Path="api/enviroment/$Name"
+    }
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+    }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 
 }
 
-#/api/scm/info
-<#
-    .SYNOPSIS
-        Returns source control respository info running on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduSourceControlInfo
+function Get-KuduDeployment
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD',ValueFromPipeline=$true)]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential       
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Id,       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-
-    BEGIN
-    {
-
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/deployments"
+    if ([String]::IsNullOrEmpty($Id) -eq $false) {
+        $KuduUriBld.Path="api/deployments/$Id"
     }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections) {
-
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/scm/info"
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                Write-Output $KuduResult
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    END
-    {
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 
-    }
 }
 
-#api/environment
-<#
-    .SYNOPSIS
-        Returns source control environment details on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduEnvironment
+function Get-KuduDiagnosticSetting
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential       
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Name,       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-    BEGIN
-    {
-
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/diagnostics/settings"
+    if ([String]::IsNullOrEmpty($Name) -eq $false) {
+        $KuduUriBld.Path="api/diagnostics/settings/$Name"
     }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections) {
-
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/environment"
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                Write-Output $KuduResult
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
     }
-    END
-    {
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 
-    }
 }
 
-#api/settings
-<#
-    .SYNOPSIS
-        Returns Kudu settings on the App Service instance
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduSetting
+function Get-KuduRecentLog
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Setting,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential  
-    )
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections) {
-
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="/api/settings"
-                if ([String]::IsNullOrEmpty($Setting) -eq $false) {
-                    $KuduUriBld.Path+="/$Setting"
-                }
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                Write-Output $KuduResult
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#api/deployments
-<#
-    .SYNOPSIS
-        Retrurns the deployment(s)
-    .PARAMETER DeploymentId
-        The deployment id
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduDeployment
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential',ValueFromPipeline=$false)]
-        [System.String]
-        $DeploymentId,        
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken
-    )
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {           
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {           
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/deployments"
-                if ([String]::IsNullOrEmpty($DeploymentId) -eq $false) {
-                    $KuduUriBld.Path="api/deployments/$($DeploymentId)" 
-                }
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                Write-Output $KuduResult             
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduUriBld.Uri) $_"
-            }            
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#VFS
-#/api/vfs
-<#
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduVfsChildItem
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Path,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [Switch]
-        $Recurse,                   
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential 
-    )
-    BEGIN
-    {
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            $i=KuduConnections.IndexOf($KuduConnection)
-            $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-            $KuduUriBld.Path="api/vfs/"
-            if([String]::IsNullOrEmpty($Path) -eq $false) {
-                $KuduUriBld.Path+="$Path"
-            }
-            try
-            {
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                if ($KuduResult -ne $null -and $Recurse.IsPresent) {
-                    foreach ($item in $KuduResult)
-                    {
-                        if ($item.mime -in "inode/directory","inode/shortcut") {
-                            $ItemUri=New-Object System.Uri($item.href.ToLower())
-                            $SubPath=$ItemUri.AbsolutePath.Replace("/api/vfs/",[String]::Empty)
-                            if($SubPath -ne "systemdrive/") {
-                                switch ($PSCmdlet.ParameterSetName)
-                                {
-                                    "AAD" {
-                                        $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint[$i] -Path $SubPath `
-                                            -AccessToken $AccessToken[$i] -Recurse -ErrorAction 'Continue'
-                                    }
-                                    "basic" {
-                                        $DirResult=Get-KuduWebsiteVfsChildItem -ScmEndpoint $ScmEndpoint[$i] -Path $SubPath `
-                                            -PublishingUsername $PublishingUsername[$i] -PublishingSecret $PublishingSecret[$i] `
-                                            -Recurse -ErrorAction 'Continue'
-                                    }
-                                    "PublishingCredential" {
-                                        $DirResult=Get-KuduWebsiteVfsChildItem -Path $SubPath -PublishingCredential $PublishingCredential[$i] `
-                                            -Recurse -ErrorAction 'Continue'
-                                    }
-                                }
-                                if($DirResult -ne $null) {
-                                    Write-Output $DirResult
-                                }
-                            }
-                            else {
-                                Write-Warning "The SystemDrive alias is skipped as it is redundant."
-                            }                                                 
-                        }
-                    }
-                }
-                else {
-                    Write-Output $KuduResult
-                }
-            }
-            catch [System.Exception] {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"   
-            }            
-        }
-    }
-    END
-    {
-    }
-}
-#/api/vfs
-<#
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Copy-KuduVfsItem
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Path,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Destination,                      
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential 
-    )
-    BEGIN
-    {
-        $UserAgent = "powershell/avanade"
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                if([String]::IsNullOrEmpty($Destination)) {
-                    $KuduUriBld.Path="api/vfs/"
-                }
-                else {
-                    $KuduUriBld.Path="api/vfs/$($Destination.TrimEnd('/'))/"
-                }
-                Write-Verbose "Uploading $Path to $($KuduUriBld.Uri)"
-                Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -Method Put `
-                    -InFile $Path -UserAgent $UserAgent -ContentType "multipart/form-data"                
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }   
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#Zip
-#api/zip
-<#
-    .SYNOPSIS
-        Downloads the specified path compressed as a zip
-    .PARAMETER Path
-        The Kudu vfs path to compress
-    .PARAMETER Destination
-        The Destination path
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Compress-KuduPath
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Path,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Destination,        
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Directory='SystemDrive/Windows/System32',        
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential 
-    )
-
-    BEGIN
-    {
-        if ((Test-Path -Path $Destination) -eq $false) {
-            Write-Verbose "$Destination does not exist! Attempting to create..."
-            New-Item -Path (Split-Path $Destination -Parent) -Name (Split-Path $Destination -Parent) -Force|Out-Null
-        }
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {           
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {           
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try 
-            {
-                $OutFile=Join-Path $Destination "$($KuduUriBld.Host)-$($Path.Replace("/","_")).zip"
-                $KuduBriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduBriBld.Path="api/zip/$($Path.TrimEnd('/'))/"
-                $Result=Invoke-RestMethod -Uri $KuduBriBld.Uri -Headers $KuduConnection.Headers -OutFile $OutFile -ErrorAction Stop                
-            }
-            catch [System.Exception] {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#Execute Command
-#api/command
-<#
-    .PARAMETER Command
-        The command to be executed
-    .PARAMETER Directory
-        The working directory
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Invoke-KuduCommand
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Command,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Directory='SystemDrive/Windows/System32',        
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken,      
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential 
-    )
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections) {
-            try 
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/command"
-                $CommandToRun=New-Object PSObject -Property @{
-                    command=$Command;
-                    dir=$Directory;
-                }    
-                $CmdResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -Method Post -Body $CommandToRun -ContentType 'application/json'
-                Write-Output $CmdResult                
-            }
-            catch [System.Exception] {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#Diagnostics
-#/api/dump
-<#
-    .PARAMETER Destination
-        The path to download the dump file to
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduDump
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [System.String]
-        $Destination=$env:TEMP,
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken      
-    )
-    BEGIN
-    {
-        if ((Test-Path -Path $Destination) -eq $false) {
-            Write-Verbose "$Destination does not exist! Attempting to create..."
-            New-Item -Path (Split-Path $Destination -Parent) -Name (Split-Path $Destination -Parent) -Force|Out-Null
-        }
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/dump"
-                $FileName="$($KuduUriBld.Host)-$(Get-Date -Format "hh_mm_ss-dd_MM_yyyy")-dump.zip"
-                $OutFile=Join-Path $Destination $FileName
-                $Result=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -OutFile $OutFile -UseBasicParsing -ErrorAction Stop                
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$($KuduConnection.ScmEndpoint) $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#Diagnostics/Settings
-#api/diagnostics/settings
-<#
-    .SYNOPSIS
-        Retrieve the Diagnostic setting(s)
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduDiagnosticSetting
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (     
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]        
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
-        [System.String]
-        $Setting,
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken            
-    )
-    BEGIN
-    {
-
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/diagnostics/settings"
-                if([String]::IsNullOrEmpty($Setting) -eq $false)
-                {
-                    $KuduUriBld.Path="api/diagnostics/settings/$Setting"
-                }
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType "application/json" -ErrorAction Stop
-                if($KuduResult -ne $null)
-                {
-                    Write-Output $KuduResult
-                }               
-            }
-            catch [System.Exception]
-            {
-                
-            }   
-        }
-    }
-    END
-    {
-
-    }
-}
-
-#Logs
-#/api/logs/recent
-<#
-    .PARAMETER Top
-        Limit to the top N results
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduRecentLog
-{
-    [CmdletBinding(DefaultParameterSetName='AAD')]
-    param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [ValidateRange(1,1000)]
-        [System.Int32]
-        $Top, 
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken    
+        [int]
+        $Top,       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-    BEGIN
-    {
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/logs/recent"
+    if ($Top -gt 0) {
+        $KuduUriBld.Query="top=$Top"
+    }
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+    }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                $KuduUriBld.Path="api/logs/recent"
-                if ($Top -gt 0) {
-                    $KuduUriBld.Query="top=$Top"
-                }
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
-                if($KuduResult -ne $null)
-                {
-                    Write-Output $KuduResult
-                }
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$KuduConnection.ScmEndpoint $_"
-            }
-        }
-    }
-    END
-    {
-
-    }
 }
 
-#Webjobs
-<#
-    .SYNOPSIS
-        Retrieve the web jobs
-    .PARAMETER Continuous
-        Retrieve continuous web jobs
-    .PARAMETER Triggered
-        Retrieve triggered web jobs
-    .PARAMETER ScmEndpoint
-        The Kudu Uri
-    .PARAMETER AccessToken
-        An Azure AD Token
-    .PARAMETER PublishingUsername
-        The Kudu publishing username
-    .PARAMETER PublishingSecret
-        The Kudu publishing password
-    .PARAMETER PublishingCredential
-        The Azure App Service Web Site publishing credential
-#>
-Function Get-KuduWebJob
+function Get-KuduWebJob
 {
-    [CmdletBinding(DefaultParameterSetName='AAD')]
+    [CmdletBinding()]
     param
-    (
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [Switch]
         $Triggered,
-        [Parameter(Mandatory=$false,ParameterSetName='basic')]
-        [Parameter(Mandatory=$false,ParameterSetName='AAD')]
-        [Parameter(Mandatory=$false,ParameterSetName='PublishingCredential')]
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [Switch]
-        $Continuous,
-        [Parameter(Mandatory=$true,ParameterSetName='PublishingCredential',ValueFromPipeline=$true)]
-        [System.Object[]]
-        $PublishingCredential,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.Uri[]]
-        $ScmEndpoint,    
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingUsername,
-        [Parameter(Mandatory=$true,ParameterSetName='basic')]
-        [System.String[]]
-        $PublishingSecret,           
-        [Parameter(Mandatory=$true,ParameterSetName='AAD')]
-        [System.String[]]
-        $AccessToken   
+        $Continuous,               
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
     )
-    BEGIN
-    {
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    if ($Triggered.IsPresent) {
+        $KuduUriBld.Path="api/triggeredwebjobs"
+    }
+    elseif ($Continuous.IsPresent) {
+        $KuduUriBld.Path="api/continuouswebjobs"
+    }
+    else {
+        $KuduUriBld.Path="api/webjobs"
+    }    
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        
+        return GetKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
+    }
+    return GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
 
-    }
-    PROCESS
-    {
-        switch ($PSCmdlet.ParameterSetName) {
-            'basic' { 
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -PublishingUsername $PublishingUsername -PublishingSecret $PublishingSecret
-            }
-            'AAD' {
-                $KuduConnections=GetKuduConnection -ScmEndpoint $ScmEndpoint -AccessToken $AccessToken
-            }
-            'PublishingCredential' {
-                $KuduConnections=GetKuduConnection -PublishingCredential $PublishingCredential
-            }
-        }
-        foreach ($KuduConnection in $KuduConnections)
-        {
-            try
-            {
-                $KuduUriBld=New-Object System.UriBuilder($KuduConnection.ScmEndpoint)
-                if ($Triggered.IsPresent) {
-                    $KuduUriBld.Path="api/triggeredwebjobs"
-                }
-                elseif ($Continuous.IsPresent) {
-                    $KuduUriBld.Path="api/continuouswebjobs"
-                }
-                else {
-                    $KuduUriBld.Path="api/webjobs"
-                }
-                $KuduResult=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $KuduConnection.Headers -ContentType 'application/json' -ErrorAction Stop
-                if($KuduResult -ne $null -and $KuduResult.Count -gt 0)
-                {
-                    Write-Output $KuduResult
-                }
-            }
-            catch [System.Exception]
-            {
-                Write-Warning "$KuduConnection.ScmEndpoint $_"
-            }
-        }
-    }
-    END
-    {
+}
 
+function Get-KuduDump
+{
+    [CmdletBinding()]
+    param
+    (   
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Destination=$env:TEMP,             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    if ((Test-Path -Path $Destination) -eq $false) {
+        throw "$Destination does not exist."
     }
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/dump"
+    $FileName="$($KuduUriBld.Host)-$(Get-Date -Format "hh_mm_ss-dd_MM_yyyy")-dump.zip"
+    $OutFile=Join-Path $Destination $FileName
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    }
+    else {
+        $Headers=@{Authorization="Bearer $AccessToken"}
+    }
+    $Result=Invoke-RestMethod -Uri $KuduUriBld.Uri -Headers $Headers -OutFile $OutFile -UseBasicParsing -ErrorAction Stop  
+}
+
+function Invoke-KuduCommand
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Command,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Directory='SystemDrive/Windows/System32',             
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    $KuduUriBld.Path="api/command"
+    $CommandToRun=New-Object PSObject -Property @{
+        command=$Command;
+        dir=$Directory;
+    }    
+    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
+        return PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential -Body $CommandToRun
+    }
+    return PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body $CommandToRun
 }
