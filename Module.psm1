@@ -58,22 +58,27 @@ function GetKuduResult
         $Headers=@{Authorization="Bearer $AccessToken"}
     }    
     $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -ErrorAction Stop
-    return $KuduResult
+    Write-Output $KuduResult
 }
 
-function PostKuduResult
+function InvokeKuduResult
 {
     [CmdletBinding()]
     param
     (
-        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
-        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [string]
         $Body,
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
         [uri]
-        $Uri,        
+        $Uri,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [ValidateSet('PUT','POST','DELETE')]
+        [string]
+        $Method='POST',               
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [pscredential]
         $Credential,
@@ -88,35 +93,15 @@ function PostKuduResult
     else {
         $Headers=@{Authorization="Bearer $AccessToken"}
     }    
-    $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -Body $Body -ContentType 'application/json' -Method Post -ErrorAction Stop
-    return $KuduResult
-}
-
-function DeleteKuduResult
-{
-    [CmdletBinding()]
-    param
-    (
-        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
-        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
-        [uri]
-        $Uri,        
-        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
-        [pscredential]
-        $Credential,
-        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
-        [String]
-        $AccessToken  
-    )
-    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
-    if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
+    if ([String]::IsNullOrEmpty($Body) -eq $false) {
+        $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -Body $Body -ContentType 'application/json' -Method $Method -ErrorAction Stop
     }
     else {
-        $Headers=@{Authorization="Bearer $AccessToken"}
-    }    
-    $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -Method Delete -ErrorAction Stop
-    return $KuduResult
+        $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -Method $Method -ErrorAction Stop
+    }
+    if ($KuduResult -ne $null) {
+        Write-Output $KuduResult
+    }
 }
 
 function UploadKuduFile
@@ -387,9 +372,7 @@ function Clear-KuduSourceControlRepository
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/scm/clean"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential
-    }
-    else {
+        InvokeKuduResult
         PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
     }
 }
@@ -413,10 +396,10 @@ function Remove-KuduSourceControlRepository
     $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
     $KuduUriBld.Path="api/scm"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
-        DeleteKuduResult -Uri $KuduUriBld.Path -Credential $Credential
+        InvokeKuduResult -Uri $KuduUriBld.Path -Credential $Credential -Method Delete
     }
     else {
-        DeleteKuduResult -Uri $KuduUriBld.Path -AccessToken $AccessToken
+        InvokeKuduResult -Uri $KuduUriBld.Path -AccessToken $AccessToken -Method Delete
     }   
 }
 
@@ -546,6 +529,57 @@ function Get-KuduDeployment
             $KuduResult=GetKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken
         }
         Write-Output $KuduResult
+    }
+}
+
+function New-KuduDeployment
+{
+    [CmdletBinding()]
+    param
+    (        
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [string]
+        $Id,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Switch]
+        $Clean,
+        [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [Switch]
+        $CheckOut,                       
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [uri]
+        $ScmEndpoint,     
+        [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
+        [pscredential]
+        $Credential,
+        [Parameter(Mandatory=$true,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
+        [String]
+        $AccessToken  
+    )
+    $KuduUriBld=New-Object System.UriBuilder($ScmEndpoint)
+    if ([String]::IsNullOrEmpty($Id) -eq $false) {
+        $KuduUriBld.Path="api/deployments/$Id"
+    }
+    else {
+        $KuduUriBld.Path="api/deployments/$Id"
+    }
+    if ($Clean.IsPresent -or $CheckOut.IsPresent) {
+        $PayloadProps=@{}
+        if ($Clean.IsPresent) {
+            $PayloadProps.Add('clean',$true)
+        }
+        if ($CheckOut.IsPresent) {
+            $PayloadProps.Add('needFileUpdate',$true)
+        }
+        $Payload=New-Object PSObject -Property $PayloadProps
+        
+    }
+    else {
+        
     }
 }
 
@@ -780,11 +814,7 @@ function Invoke-KuduCommand
     }    
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential')
     {
-        $KuduResult=PostKuduResult -Uri $KuduUriBld.Uri -Credential $Credential -Body ($CommandToRun|ConvertTo-Json)
-    }
-    else 
-    {
-        $KuduResult=PostKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body ($CommandToRun|ConvertTo-Json)
+        $KuduResult=InvokeKuduResult -Uri $KuduUriBld.Uri -AccessToken $AccessToken -Body ($CommandToRun|ConvertTo-Json)
     }
     Write-Output $KuduResult
 }
