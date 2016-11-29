@@ -663,7 +663,7 @@ function Get-KuduRecentLog
     (        
         [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
-        [ValidateRange(1,1000)]
+        [ValidateRange(0,1000)]
         [int]
         $Top,       
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
