@@ -550,6 +550,10 @@ function Get-KuduSetting
 }
 
 <#
+    .SYNOPSIS
+        Retrieves the Website deployments
+    .PARAMETER Id
+        The deployment id
     .PARAMETER ScmEndpoint
         The Azure Website SCM Endpoint
     .PARAMETER Credential
@@ -835,6 +839,12 @@ function Get-KuduRecentLog
 }
 
 <#
+    .SYNOPSIS
+        Returns the list of web jobs
+    .PARAMETER Triggered
+        Return the triggered web jobs
+    .PARAMETER Continuous
+        Return the continuous web jobs        
     .PARAMETER ScmEndpoint
         The Azure Website SCM Endpoint
     .PARAMETER Credential
@@ -932,6 +942,12 @@ function Save-KuduDump
 }
 
 <#
+    .SYNOPSIS
+        Invokes the specified command on the Web server
+    .PARAMETER Command
+        The command to execute
+    .PARAMETER Directory
+        The starting directory for the command
     .PARAMETER ScmEndpoint
         The Azure Website SCM Endpoint
     .PARAMETER Credential
