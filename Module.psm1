@@ -149,6 +149,12 @@ function SaveKuduFile
 
 #endregion
 
+<#
+    .SYNOPSIS
+        Converts a publishing Uri to a Kudu credential
+    .PARAMETER Uri
+        The publishing Uri from the Azure Website resource
+#>
 function ConvertTo-KuduConnection 
 {
     [CmdletBinding()]
@@ -179,6 +185,20 @@ function ConvertTo-KuduConnection
     }
 }
 
+<#
+    .SYNOPSIS
+        Returns process details for the Website
+    .PARAMETER Id
+        The process id
+    .PARAMETER Name
+        The process name
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduProcess 
 {
     [CmdletBinding()]
@@ -239,6 +259,18 @@ function Get-KuduProcess
     #endregion
 }
 
+<#
+    .SYNOPSIS
+        Returns a mini dump for the specified process
+    .PARAMETER Id
+        The process id
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduProcessMinidump
 {
     [CmdletBinding()]
@@ -274,6 +306,16 @@ function Get-KuduProcessMinidump
     }
 }
 
+<#
+    .SYNOPSIS
+        Returns a list of the runtime versions
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduRuntimeVersions
 {
     [CmdletBinding()]
@@ -302,6 +344,16 @@ function Get-KuduRuntimeVersions
     Write-Output $KuduResult
 }
 
+<#
+    .SYNOPSIS
+        Returns source control info for the Website
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduSourceControlInfo
 {
     [CmdletBinding()]
@@ -329,6 +381,16 @@ function Get-KuduSourceControlInfo
     Write-Output $KuduResult
 }
 
+<#
+    .SYNOPSIS
+        Clears the Website's associated source control repository
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Clear-KuduSourceControlRepository
 {
     [CmdletBinding()]
@@ -355,6 +417,16 @@ function Clear-KuduSourceControlRepository
     }
 }
 
+<#
+    .SYNOPSIS
+        Removes the Website's associated source control repository    
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Remove-KuduSourceControlRepository
 {
     [CmdletBinding()]
@@ -381,6 +453,16 @@ function Remove-KuduSourceControlRepository
     }
 }
 
+<#
+    .SYNOPSIS
+        Returns the current Kudu runtime environment details
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduEnvironment
 {
     [CmdletBinding()]
@@ -409,6 +491,14 @@ function Get-KuduEnvironment
     Write-Output $KuduResult
 }
 
+<#
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduSetting
 {
     [CmdletBinding()]
@@ -459,6 +549,14 @@ function Get-KuduSetting
     }
 }
 
+<#
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduDeployment
 {
     [CmdletBinding()]
@@ -510,6 +608,14 @@ function Get-KuduDeployment
     }
 }
 
+<#
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Start-KuduDeployment
 {
     [CmdletBinding()]
@@ -572,6 +678,18 @@ function Start-KuduDeployment
     
 }
 
+<#
+    .SYNOPSIS
+        Retrieves a deployment log for the specified deployment id
+    .PARAMETER Id
+        The deployment id
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduDeploymentLog
 {
     [CmdletBinding()]
@@ -606,6 +724,18 @@ function Get-KuduDeploymentLog
     }
 }
 
+<#
+    .SYNOPSIS
+        Retrieves the specified diagnostic setting value
+    .PARAMETER Name
+        The diagnostic setting name
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduDiagnosticSetting
 {
     [CmdletBinding()]
@@ -656,6 +786,18 @@ function Get-KuduDiagnosticSetting
     }
 }
 
+<#
+    .SYNOPSIS
+        Returns the recent log entries for the Website
+    .PARAMETER Top
+        Limits the results to the specified count
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduRecentLog
 {
     [CmdletBinding()]
@@ -663,7 +805,7 @@ function Get-KuduRecentLog
     (        
         [Parameter(Mandatory=$false,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
         [Parameter(Mandatory=$false,ParameterSetName='ByToken',ValueFromPipelineByPropertyName=$true)]
-        [ValidateRange(0,1000)]
+        [ValidateRange(1,1000)]
         [int]
         $Top,       
         [Parameter(Mandatory=$true,ParameterSetName='ByCredential',ValueFromPipelineByPropertyName=$true)]
@@ -692,6 +834,14 @@ function Get-KuduRecentLog
     Write-Output $KuduResult
 }
 
+<#
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduWebJob
 {
     [CmdletBinding()]
@@ -736,6 +886,16 @@ function Get-KuduWebJob
     Write-Output $KuduResult
 }
 
+<#
+    .SYNOPSIS
+        Downloads a Kudu summary dump
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Save-KuduDump
 {
     [CmdletBinding()]
@@ -771,6 +931,14 @@ function Save-KuduDump
     }  
 }
 
+<#
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Invoke-KuduCommand
 {
     [CmdletBinding()]
@@ -808,6 +976,20 @@ function Invoke-KuduCommand
     Write-Output $KuduResult
 }
 
+<#
+    .SYNOPSIS
+        Enumerates the child items within the specified VFS path
+    .PARAMETER Path
+        The path to evaluate
+    .PARAMETER Recurse
+        Whether to recurse the current path
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Get-KuduVfsChildItem
 {
     [CmdletBinding()]
@@ -875,6 +1057,20 @@ function Get-KuduVfsChildItem
     }
 }
 
+<#
+    .SYNOPSIS
+        Downloads the specified VFS item
+    .PARAMETER Path
+        The VFS path to download
+    .PARAMETER Destination
+        The destination path for the downloaded file
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Copy-KuduVfsItem
 {
     [CmdletBinding()]
@@ -914,6 +1110,20 @@ function Copy-KuduVfsItem
     
 }
 
+<#
+    .SYNOPSIS
+        Downloads the specified VFS path as a zip file
+    .PARAMETER Path
+        The VFS path to download
+    .PARAMETER Destination
+        The destination path for the downloaded file
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Compress-KuduPath
 {
     [CmdletBinding()]
@@ -952,6 +1162,20 @@ function Compress-KuduPath
     }
 }
 
+<#
+    .SYNOPSIS
+        Expands a zip file to the Kudu VFS
+    .PARAMETER Path
+        The path to the zip file to upload and expand
+    .PARAMETER Destination
+        The VFS destination path to extract the zip
+    .PARAMETER ScmEndpoint
+        The Azure Website SCM Endpoint
+    .PARAMETER Credential
+        The Kudu Website publishing credential
+    .PARAMETER AccessToken
+        An appropriate OAuth Bearer token
+#>
 function Expand-KuduVfsZipFile
 {
     [CmdletBinding()]
