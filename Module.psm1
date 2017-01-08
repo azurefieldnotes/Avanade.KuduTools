@@ -59,7 +59,7 @@ function InvokeKuduResult
         [String]
         $AccessToken  
     )
-    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
+    Write-Verbose "[InvokeKuduResult]   ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
@@ -67,9 +67,11 @@ function InvokeKuduResult
         $Headers=@{Authorization="Bearer $AccessToken"}
     }    
     if ([String]::IsNullOrEmpty($Body) -eq $false) {
+        Write-Verbose "[InvokeKuduResult] Invoking $Method with Body length $($Body.Length) against $Uri"
         $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -Body $Body -ContentType 'application/json' -Method $Method -ErrorAction Stop
     }
     else {
+        Write-Verbose "[InvokeKuduResult] Invoking $Method without Body against $Uri"
         $KuduResult=Invoke-RestMethod -Uri $Uri -Headers $Headers -ContentType 'application/json' -Method $Method -ErrorAction Stop
     }
     if ($KuduResult -ne $null) {
@@ -102,13 +104,14 @@ function UploadKuduFile
         [String]
         $AccessToken  
     )
-    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
+    Write-Verbose "[UploadKuduFile] ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
     else {
         $Headers=@{Authorization="Bearer $AccessToken"}
-    }    
+    }
+    Write-Verbose "[UploadKuduFile] Uploading File $($Path) via $($Uri)"
     Invoke-RestMethod -Uri $Uri -Headers $Headers -InFile $Path -ContentType "multipart/form-data" -Method $Method -UserAgent "powershell/avanade" -ErrorAction Stop    
 }
 
@@ -137,13 +140,14 @@ function SaveKuduFile
         [String]
         $AccessToken  
     )
-    Write-Verbose "ParameterSetName=$($PSCmdlet.ParameterSetName)"
+    Write-Verbose "[SaveKuduFile]   ParameterSetName=$($PSCmdlet.ParameterSetName)"
     if ($PSCmdlet.ParameterSetName -eq 'ByCredential') {
         $Headers=@{Authorization="Basic $($Credential|ConvertCredentialToBasicAuth)"}
     }
     else {
         $Headers=@{Authorization="Bearer $AccessToken"}
     }
+    Write-Verbose "[SaveKuduFile]  Saving file via $Method against $Uri to $OutFile"
     $Result=Invoke-RestMethod -Uri $Uri -Headers $Headers -Method $Method -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
 }
 
