@@ -116,7 +116,7 @@ function SaveKuduFile
     .PARAMETER AccessToken
         An OAuth bearer token (likely obtained via ARM)
 #>
-Function Invoke-KuduRequest
+function Invoke-KuduRequest
 {
     [CmdletBinding(ConfirmImpact='None')]
     param
