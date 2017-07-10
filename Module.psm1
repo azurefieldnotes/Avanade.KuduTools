@@ -97,7 +97,7 @@ function SaveKuduFile
         $Headers=@{Authorization="Bearer $AccessToken"}
     }
     Write-Verbose "[SaveKuduFile]  Saving file via $Method against $Uri to $OutFile"
-    $Result=Invoke-RestMethod -Uri $Uri -Headers $Headers -Method $Method -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
+    Invoke-RestMethod -Uri $Uri -Headers $Headers -Method $Method -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
 }
 
 #endregion
