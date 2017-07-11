@@ -21,7 +21,11 @@ function ConvertCredentialToBasicAuth
     {
         foreach ($item in $Credential)
         {
-            $AuthInfo="$($item.UserName):$($item.GetNetworkCredential().Password)"
+            #Convert the credential to plaintext
+            $SecStringPointer=[System.IntPtr]::Zero
+            $SecStringPointer=[System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($item.Password)
+            $ClearPassword=[System.Runtime.InteropServices.Marshal]::PtrToStringUni($SecStringPointer)
+            $AuthInfo="$($item.UserName):$($ClearPassword)"
             $BasicCredential = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AuthInfo))
             Write-Output $BasicCredential
         }
