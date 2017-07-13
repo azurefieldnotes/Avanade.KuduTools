@@ -193,9 +193,14 @@ function ConvertTo-KuduConnection
         {
             $UserName=$item.UserInfo.Split(':')|Select-Object -First 1
             $Password=$item.UserInfo.Split(':')|Select-Object -Last 1
+            $SecureString=[securestring]::new()
+            foreach($Char in $Password.ToCharArray())
+            {
+                $SecureString.AppendChar($Char)
+            }
             $KuduConnection=New-Object PSObject -Property @{
                 ScmEndpoint=[Uri]"$($item.Scheme)://$($item.Host)";
-                Credential=New-Object pscredential($UserName,($Password|ConvertTo-SecureString -AsPlainText -Force));
+                Credential=New-Object pscredential($UserName,$SecureString);
             }
             Write-Output $KuduConnection
         }
